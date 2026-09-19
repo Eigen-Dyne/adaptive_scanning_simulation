@@ -1,0 +1,5 @@
+# Simulation runtime outputs
+scan_logs/
+sim/logs/
+sim/run/
+sim/major_events.log
