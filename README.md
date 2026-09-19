@@ -107,6 +107,41 @@ The Robot and Gazebo processes remain host-side in this test path. The Robot
 production container is intended for physical hardware; Gazebo supplies its
 replacement hardware interfaces during simulation.
 
+## Containerized ArmX-E simulation test
+
+To run the ArmX-E service containers against simulated ROS hardware, use two
+terminals. First start the simulated robot, camera, controllers, and MoveIt:
+
+```bash
+cd ~/adaptive_scanning_ws/src/adaptive_scanning_simulation
+./sim/sim.sh build
+SIM_PART=10 SIM_GZ_GUI=true ./sim/sim.sh hw
+```
+
+Then start the simulation compose profile from Common:
+
+```bash
+cd ~/adaptive_scanning_ws/src/Dyne-vision-common
+export ADAPTIVE_SCANNING_INTERFACES_REF=dependency_fix
+./armx-e/scripts/armx-e.sh sim-compose up -d
+```
+
+Inspect or stop the containers with:
+
+```bash
+./armx-e/scripts/armx-e.sh sim-compose ps
+./armx-e/scripts/armx-e.sh sim-compose logs -f
+./armx-e/scripts/armx-e.sh sim-compose down
+
+cd ../adaptive_scanning_simulation
+./sim/sim.sh down
+```
+
+The compose profile containerizes the ArmX-E application services and launches
+Common scans in the Common container. Gazebo and the Robot simulation remain in
+the host ROS workspace so they can use the complete simulation and graphics
+stack.
+
 ## Runtime stages
 
 1. `as_sim/gazebo.launch.py` loads the world, Robot xacro, controllers, camera,
