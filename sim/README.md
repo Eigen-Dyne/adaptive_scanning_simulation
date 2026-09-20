@@ -14,7 +14,8 @@ generation, and TSDF fusion all done locally.
 
 - ROS 2 Jazzy, the workspace built once (`colcon build`), Gazebo (gz-sim 8) and
   `ros_gz_*` installed (all already present on this machine).
-- `doosan-robot2` checked out in the same workspace (`~/ros2_ws/src/doosan-robot2`).
+- `doosan-robot2` Jazzy checked out and built in the same workspace. Follow the
+  complete vendor and five-repository setup in the root [README](../README.md#workspace-setup).
 - Gazebo runs headless by default. A display is only needed when explicitly
   opting into the Gazebo GUI.
 
