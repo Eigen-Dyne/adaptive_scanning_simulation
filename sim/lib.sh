@@ -12,9 +12,9 @@ ROS_DISTRO="${ROS_DISTRO:-jazzy}"
 # live here. Default to the in-repo scan_logs/ so nothing needs /scan_logs.
 RUNTIME_ROOT="${ADAPTIVE_SCANNING_SIM_LOG_DIR:-${SIM_REPO_ROOT}/scan_logs}"
 
-SIM_LOG_DIR="${SIM_DIR}/logs"
-SIM_RUN_DIR="${SIM_DIR}/run"                              # pid files
-SIM_PARAMS="${SIM_RUN_DIR}/sim_scan_params.yaml"
+SIM_LOG_DIR="${SIM_LOG_DIR:-${SIM_DIR}/logs}"
+SIM_RUN_DIR="${SIM_RUN_DIR:-${SIM_DIR}/run}"              # pid files
+SIM_PARAMS="${SIM_PARAMS:-${SIM_RUN_DIR}/sim_scan_params.yaml}"
 SIM_DOCKER_PARAMS_HOST="${RUNTIME_ROOT}/sim/sim_scan_params.yaml"
 SIM_DOCKER_PARAMS_CONTAINER="/scan_logs/sim/sim_scan_params.yaml"
 TABLE_PLY="${RUNTIME_ROOT}/Calibration/table.ply"

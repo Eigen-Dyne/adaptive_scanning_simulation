@@ -28,6 +28,13 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.sh"
 export SIM_MAJOR_EVENTS_LOG_PATH="${SIM_REPO_ROOT}/sim/major_events.log"
 
 cmd_build() {
+  # Prebuilt container image: the workspace is already built and only as_sim
+  # has sources. Nothing to do but source the overlay.
+  if [ "${SIM_SKIP_BUILD:-0}" = "1" ]; then
+    source_ros || return 1
+    ok "build skipped (SIM_SKIP_BUILD=1, prebuilt image)"
+    return 0
+  fi
   source_ros_base || return 1
   log "colcon build (symlink-install) in ${WS_ROOT}"
   ( cd "${WS_ROOT}" && colcon build --symlink-install \
@@ -38,6 +45,14 @@ cmd_build() {
 }
 
 cmd_prepare() {
+  # In the container stack the sim-prepare service generates params and the
+  # table calibration into the shared runtime volume before this starts.
+  if [ "${SIM_SKIP_PREPARE:-0}" = "1" ]; then
+    source_ros || return 1
+    validate_sim_object || return 1
+    ok "prepare skipped (SIM_SKIP_PREPARE=1, artifacts supplied externally)"
+    return 0
+  fi
   source_ros || return 1
   validate_sim_object || return 1
   gen_params || return 1
