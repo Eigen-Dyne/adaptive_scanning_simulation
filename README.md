@@ -13,11 +13,17 @@ The simulation preserves the production ROS 2 contracts:
 
 ## Workspace setup
 
-Use a clean ROS 2 Jazzy workspace. Clone every repository on the same branch:
+Use a clean ROS 2 Jazzy workspace. Clone the Doosan ROS 2 vendor stack and all
+five Adaptive Scanning repositories into the same `src/` directory:
 
 ```bash
 mkdir -p ~/adaptive_scanning_ws/src
 cd ~/adaptive_scanning_ws/src
+
+# Vendor robot dependency. The simulation was validated on the Jazzy branch at
+# b43d07103d92e7d90014b83ddf42506779bafdcc.
+git clone --branch jazzy \
+  https://github.com/DoosanRobotics/doosan-robot2.git
 
 git clone --branch dependency_fix \
   https://github.com/Eigen-Dyne/adaptive_scanning_simulation.git
@@ -32,11 +38,21 @@ git clone --branch dependency_fix \
 ```
 
 The interface repository is listed separately because it is the public ROS
-message/action contract shared by Common and Robot.
+message/action contract shared by Common and Robot. `doosan-robot2` is an
+external vendor dependency and is not one of the five project repositories.
 
-Install the ROS dependencies from the workspace root. The Robot package also
-requires the Jazzy Doosan ROS 2 stack described by its container and deployment
-setup.
+For a reproducible checkout matching the validated environment, pin the vendor
+repository after cloning it:
+
+```bash
+git -C ~/adaptive_scanning_ws/src/doosan-robot2 checkout \
+  b43d07103d92e7d90014b83ddf42506779bafdcc
+```
+
+Install the ROS dependencies from the workspace root. This resolves the
+dependencies of both the five project repositories and the Doosan vendor
+packages. ROS 2 Jazzy, Gazebo Sim 8, `ros_gz`, and `gz_ros2_control` must be
+available on the host.
 
 ```bash
 cd ~/adaptive_scanning_ws
@@ -44,6 +60,26 @@ source /opt/ros/jazzy/setup.bash
 rosdep update
 rosdep install --from-paths src --ignore-src -r -y --rosdistro jazzy
 ```
+
+The Doosan controller emulator installation script is not required for this
+Gazebo-only path: Gazebo and `gz_ros2_control` provide the simulated robot
+hardware. It is required only when separately testing the Doosan virtual
+controller workflow documented by the vendor.
+
+Build the simulation stack and verify that the required vendor description is
+available in the resulting overlay:
+
+```bash
+cd ~/adaptive_scanning_ws/src/adaptive_scanning_simulation
+./sim/sim.sh build
+
+cd ~/adaptive_scanning_ws
+source install/setup.bash
+ros2 pkg prefix dsr_description2
+```
+
+The final command should print a path under
+`~/adaptive_scanning_ws/install/dsr_description2`.
 
 ## Self-contained ROS simulation
 
@@ -53,7 +89,6 @@ ROS workspace. It does not start the ArmX-E application.
 ```bash
 cd ~/adaptive_scanning_ws/src/adaptive_scanning_simulation
 
-./sim/sim.sh build
 SIM_PART=10 SIM_GZ_GUI=true ./sim/sim.sh up
 ```
 
