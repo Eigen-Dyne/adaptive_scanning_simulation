@@ -37,22 +37,46 @@ fi
 # container's only long-lived workload: keep PID 1 alive while that stage runs
 # and use sim.sh's normal cleanup ladder on container shutdown.
 if [ "$1" = "gazebo" ]; then
-  /opt/adaptive_scanning/sim/sim.sh "$@"
   stage_pid_file="${SIM_RUN_DIR}/gazebo.pid"
+  # This container owns the gazebo stage outright, so a pid file on the shared
+  # /runtime volume is always a leftover from a container that was killed
+  # before its cleanup ran. Left in place it can trip start_stage's "already
+  # running" branch and abort us under `set -e`.
+  rm -f "${stage_pid_file}"
+
+  /opt/adaptive_scanning/sim/sim.sh "$@"
   if [ ! -s "${stage_pid_file}" ]; then
     echo "simulation gazebo stage did not create ${stage_pid_file}" >&2
     exit 1
   fi
-  stage_pid="$(<"${stage_pid_file}")"
+  # start_stage writes "<pid> <start-ticks>"; only the first field is the pid.
+  read -r stage_pid _ < "${stage_pid_file}" || true
+  case "${stage_pid:-}" in
+    '' | *[!0-9]*)
+      echo "simulation gazebo stage wrote an unusable pid file: ${stage_pid_file}" >&2
+      exit 1
+      ;;
+  esac
+
   cleanup() {
     /opt/adaptive_scanning/sim/sim.sh down || true
   }
-  trap cleanup EXIT INT TERM
+  # A stop signal is a clean shutdown; the stage dying on its own is not.
+  on_signal() {
+    trap - EXIT INT TERM
+    cleanup
+    exit 0
+  }
+  trap cleanup EXIT
+  trap on_signal INT TERM
   while kill -0 "${stage_pid}" 2>/dev/null; do
     sleep 1
   done
-  trap - EXIT INT TERM
-  exit 0
+  # Reached only when the stage died by itself: report failure rather than
+  # letting Compose read a crashed Gazebo as a clean exit. The EXIT trap still
+  # runs sim.sh down to reap whatever is left of the stage.
+  echo "simulation gazebo stage exited unexpectedly; see ${SIM_LOG_DIR}/gazebo.log" >&2
+  exit 1
 fi
 
 exec /opt/adaptive_scanning/sim/sim.sh "$@"

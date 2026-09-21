@@ -356,9 +356,8 @@ def generate_launch_description():
             " ",
             "namespace:=",
             LaunchConfiguration("name"),
-            # dsr_description2's Gazebo ros2_control macro requires this
-            # xacro argument.  Without it launch aborts before the delayed
-            # dataset-object spawn action runs.
+            # a0912_scanner.urdf.xacro declares this argument and maps it to
+            # the vendor Gazebo macro's `rate` parameter.
             " update_rate:=30",
         ]
     )
