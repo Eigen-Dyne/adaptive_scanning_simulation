@@ -45,8 +45,8 @@ cmd_build() {
 }
 
 cmd_prepare() {
-  # In the container stack the sim-prepare service generates params and the
-  # table calibration into the shared runtime volume before this starts.
+  # In the container stack the Common application container generates params
+  # and table calibration into the shared runtime volume before this starts.
   if [ "${SIM_SKIP_PREPARE:-0}" = "1" ]; then
     source_ros || return 1
     validate_sim_object || return 1
@@ -188,7 +188,13 @@ cmd_down() {
   stop_stage scan
   stop_stage moveit
   stop_stage gazebo
-  stop_sim_stragglers
+  # Every normal stage has its own recorded process group.  Do not use the
+  # legacy name-pattern sweep here: it can terminate another local session.
+  # Set SIM_FORCE_STRAGGLER_SWEEP=true only for manual emergency recovery.
+  if [ "${SIM_FORCE_STRAGGLER_SWEEP:-false}" = "true" ]; then
+    warn "running requested emergency process-name sweep"
+    stop_sim_stragglers
+  fi
   ok "all stages stopped"
 }
 

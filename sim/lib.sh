@@ -397,24 +397,52 @@ stop_sim_stragglers() {
 start_stage() {
   local name="$1" logfile="$2"; shift 2
   local pidfile="${SIM_RUN_DIR}/${name}.pid"
-  if [ -f "${pidfile}" ] && kill -0 "$(cat "${pidfile}")" 2>/dev/null; then
-    warn "${name} already running (pid $(cat "${pidfile}")). Use 'sim.sh down' first."
+  local previous_pid previous_start
+  if [ -f "${pidfile}" ]; then
+    read -r previous_pid previous_start < "${pidfile}" || true
+  fi
+  if [ -n "${previous_pid:-}" ] && stage_pid_matches "${previous_pid}" "${previous_start:-}"; then
+    warn "${name} already running (pid ${previous_pid}). Use 'sim.sh down' first."
     return 1
   fi
+  rm -f "${pidfile}"
   log "starting ${name} -> ${logfile}"
   # New process group so we can signal the whole launch tree on teardown.
-  setsid bash -c "$* >'${logfile}' 2>&1" &
-  echo "$!" > "${pidfile}"
+  #
+  # armx-e_sim.sh serializes lifecycle commands with flock on FD 9.  Shell
+  # descriptors are inherited across exec, so a detached stage must explicitly
+  # close it.  Otherwise Gazebo/MoveIt can retain the launcher's lifecycle lock
+  # after the launcher exits, which prevents the Runner's recovery stop.
+  setsid bash -c "exec 9>&-; $* >'${logfile}' 2>&1" &
+  echo "$! $(stage_start_time "$!")" > "${pidfile}"
   ok "${name} started (pid $!)"
+}
+
+stage_start_time() {
+  local pid="$1"
+  awk '{print $22}' "/proc/${pid}/stat" 2>/dev/null || true
+}
+
+stage_pid_matches() {
+  local pid="$1" expected_start="${2:-}" actual_start
+  kill -0 "${pid}" 2>/dev/null || return 1
+  # Legacy one-column pid files remain valid for a single transition release.
+  [ -z "${expected_start}" ] && return 0
+  actual_start="$(stage_start_time "${pid}")"
+  [ -n "${actual_start}" ] && [ "${actual_start}" = "${expected_start}" ]
 }
 
 stop_stage() {
   local name="$1"
   local pidfile="${SIM_RUN_DIR}/${name}.pid"
   [ -f "${pidfile}" ] || return 0
-  local pid; pid="$(cat "${pidfile}")"
-  if kill -0 "${pid}" 2>/dev/null; then
+  local pid started_at
+  read -r pid started_at < "${pidfile}" || true
+  if [ -n "${pid:-}" ] && stage_pid_matches "${pid}" "${started_at:-}"; then
     log "stopping ${name} (pgid ${pid})"
+    # A bridge pause uses SIGSTOP on its scan process group.  Continue it
+    # before SIGINT so ROS can run its normal shutdown handlers.
+    kill -CONT -- "-${pid}" 2>/dev/null || true
     kill -INT -- "-${pid}" 2>/dev/null || kill -INT "${pid}" 2>/dev/null || true
     for _ in $(seq 1 15); do kill -0 "${pid}" 2>/dev/null || break; sleep 1; done
     kill -0 "${pid}" 2>/dev/null && kill -TERM -- "-${pid}" 2>/dev/null

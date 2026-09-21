@@ -31,4 +31,28 @@ fi
 if [ "$#" -eq 0 ]; then
   set -- gazebo
 fi
+
+# sim.sh starts Gazebo in its own process group and then returns so that the
+# host workflow can launch later stages independently. In Compose this is the
+# container's only long-lived workload: keep PID 1 alive while that stage runs
+# and use sim.sh's normal cleanup ladder on container shutdown.
+if [ "$1" = "gazebo" ]; then
+  /opt/adaptive_scanning/sim/sim.sh "$@"
+  stage_pid_file="${SIM_RUN_DIR}/gazebo.pid"
+  if [ ! -s "${stage_pid_file}" ]; then
+    echo "simulation gazebo stage did not create ${stage_pid_file}" >&2
+    exit 1
+  fi
+  stage_pid="$(<"${stage_pid_file}")"
+  cleanup() {
+    /opt/adaptive_scanning/sim/sim.sh down || true
+  }
+  trap cleanup EXIT INT TERM
+  while kill -0 "${stage_pid}" 2>/dev/null; do
+    sleep 1
+  done
+  trap - EXIT INT TERM
+  exit 0
+fi
+
 exec /opt/adaptive_scanning/sim/sim.sh "$@"
