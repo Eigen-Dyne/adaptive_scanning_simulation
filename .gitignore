@@ -3,3 +3,7 @@ scan_logs/
 sim/logs/
 sim/run/
 sim/major_events.log
+
+# Python bytecode
+__pycache__/
+*.pyc

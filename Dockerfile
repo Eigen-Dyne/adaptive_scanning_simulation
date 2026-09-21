@@ -5,8 +5,12 @@
 # It exists so that the images that actually ship (robot, common, sensor) are
 # the ones exercised in simulation, instead of a host colcon build of source.
 #
-# Build context: repository root.
-#   docker build --build-arg ROBOT_IMAGE=dyne-vision-robot:local -t dyne-vision-simulation:local .
+# Build this image through the repository lifecycle command:
+#
+#   ./scripts/adaptive-scanning build --with-sim
+#
+# Its build context is components/simulation. Bake supplies the just-built
+# Robot image as a named context, so it must not be built independently.
 #
 # Why FROM the robot image:
 #   Gazebo loads gz_ros2_control *inside its own process*, and that plugin
