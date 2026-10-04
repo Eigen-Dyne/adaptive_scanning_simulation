@@ -38,8 +38,9 @@ SHELL ["/bin/bash", "-c"]
 
 # ros_gz / gz_ros2_control are deliberately skip-keyed in the robot image's
 # rosdep invocation; simulation adds them on top. The robot package is not
-# rebuilt.
+# rebuilt. Build tools belong here now that the fleet Robot image excludes them.
 RUN apt-get update && apt-get install -y --no-install-recommends \
+      build-essential cmake python3-colcon-common-extensions ros-jazzy-ament-cmake \
       ros-jazzy-ros-gz-sim \
       ros-jazzy-ros-gz-bridge \
       ros-jazzy-ros-gz-interfaces \
@@ -55,7 +56,7 @@ WORKDIR /edge_ws
 RUN source /opt/ros/jazzy/setup.bash && \
     source /edge_ws/doosan_ws/install/setup.bash && \
     source /edge_ws/install/setup.bash && \
-    colcon build --symlink-install --packages-select as_sim
+    colcon build --executor sequential --symlink-install --packages-select as_sim --cmake-args -DBUILD_TESTING=OFF
 
 COPY sim /opt/adaptive_scanning/sim
 COPY docker/entrypoint.sh /entrypoint.sh
