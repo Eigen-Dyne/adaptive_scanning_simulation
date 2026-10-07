@@ -40,6 +40,16 @@ cd ~/adaptive_scanning_ws/src/adaptive_scanning_simulation
 3. **scan** — `as_edge_common scan_and_perceive.launch.py`: scan action servers
    and the orchestrator that drives the end-to-end scan, then exits.
 
+Gazebo initializes the arm at the folded scan/home pose from the Robot package's
+`config/gazebo_initial_positions.yaml` (degrees). The all-zero upright pose
+intersects the cell ceiling with the scanner attached. Generated simulation
+parameters use a table scale of 1.0: the synthetic calibration cloud already
+covers the scan workspace, and the physical default scale of 4.0 would extend
+the table through the side and rear walls. Collision checking remains enabled.
+After changing these settings in Docker, rebuild the Robot and Simulation
+images and restart the simulation runtime; restarting a scan alone does not
+respawn the robot.
+
 ## Commands
 
 | Command | Purpose |

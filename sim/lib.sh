@@ -115,6 +115,8 @@ gen_params() {
   local probe_settle="${ARMX_SIM_PROBE_POST_SETTLE_S:-${SIM_PROBE_POST_SETTLE_S:-0.6}}"
   # A0912 simulation tuning is intentionally applied only to generated sim
   # parameters; the real stack retains its calibrated fleet home/workspace.
+  # The synthetic table already spans the workspace. Scaling it by the physical
+  # default of 4.0 intersects the cell walls and invalidates every start state.
   sed -e "s|/scan_logs|${RUNTIME_ROOT}|g" \
       -e "s|use_sim_time: false|use_sim_time: true|g" \
       -e "s|max_tf_wait_sec: 1.50|max_tf_wait_sec: 0.30|g" \
@@ -123,6 +125,8 @@ gen_params() {
       -e 's|scan_target_type: "pose"|scan_target_type: "joints"|g' \
       -e "s|execute_joint_full_target: false|execute_joint_full_target: true|g" \
       -e "s|scanner_offset_m: 0.25|scanner_offset_m: 0.32|g" \
+      -e 's|table_plane_scale_x: 4.0|table_plane_scale_x: 1.0|g' \
+      -e 's|table_plane_scale_y: 4.0|table_plane_scale_y: 1.0|g' \
       -e "s|boundary_min: \\[-0.30, 0.40, -0.12\\]|boundary_min: [-0.45, 0.35, -0.12]|g" \
       -e "s|boundary_max: \\[0.30, 0.75, 0.33\\]|boundary_max: [0.45, 1.00, 0.55]|g" \
       "${src}" > "${SIM_PARAMS}"
@@ -133,6 +137,8 @@ gen_params() {
       -e 's|scan_target_type: "pose"|scan_target_type: "joints"|g' \
       -e "s|execute_joint_full_target: false|execute_joint_full_target: true|g" \
       -e "s|scanner_offset_m: 0.25|scanner_offset_m: 0.32|g" \
+      -e 's|table_plane_scale_x: 4.0|table_plane_scale_x: 1.0|g' \
+      -e 's|table_plane_scale_y: 4.0|table_plane_scale_y: 1.0|g' \
       -e "s|boundary_min: \\[-0.30, 0.40, -0.12\\]|boundary_min: [-0.45, 0.35, -0.12]|g" \
       -e "s|boundary_max: \\[0.30, 0.75, 0.33\\]|boundary_max: [0.45, 1.00, 0.55]|g" \
       "${src}" > "${SIM_DOCKER_PARAMS_HOST}"
