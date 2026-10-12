@@ -37,8 +37,9 @@ controllers → `move_group` → scan action graph).
 The Fleet Status **Hand-Eye Calibration → Calibrate** button uses the existing
 Common calibration request and `/armx/run_handeye_calibration` Robot action.
 With a simulated Robot, that action starts the headless Sentiac engine ported
-from `A0912_Unified` at `0422c419`. The real-mode action retains its existing
-runtime; this integration does not enable the auto engine on hardware.
+from `A0912_Unified` at `0422c419`. Hardware uses the same action boundary
+with its own real-camera auto-calibration profile; see the Robot package
+README for the physical setup.
 
 Rebuild Common, Robot and Simulation, then restart the stack in simulation:
 
