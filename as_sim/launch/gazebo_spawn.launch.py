@@ -282,15 +282,16 @@ def generate_launch_description():
         value=_append_resource_path(gz_resource_path, pkg_share_parent),
     )
     use_sim_time = LaunchConfiguration("use_sim_time")
+    # GUI runs use the desktop's GL context. Forcing EGL headless rendering
+    # while a display is available can crash Ogre on some graphics drivers.
     gazebo_args_prefix = PythonExpression(
         [
-            "'-r -v 1 ' if '",
+            "'-s -r -v 1 ' if '",
             LaunchConfiguration("gui"),
             "'.lower() in ('true', '1', 'yes', 'on') "
             "else '-s --headless-rendering -r -v 1 '",
         ]
     )
-
     gazebo = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             [FindPackageShare("ros_gz_sim"), "/launch/gz_sim.launch.py"]
@@ -331,6 +332,22 @@ def generate_launch_description():
             LaunchConfiguration("Y"),
         ],
         parameters=[{"use_sim_time": use_sim_time}],
+    )
+
+    # Connecting a GUI while the robot is being inserted can leave its render
+    # scene missing the arm even though physics and controller topics are live.
+    # Start the server first; attach the optional viewer to the completed model.
+    gazebo_gui = ExecuteProcess(
+        cmd=["gz", "sim", "-g", "-v", "1"],
+        condition=IfCondition(LaunchConfiguration("gui")),
+        output="screen",
+    )
+
+    def start_gui_after_robot_spawn(event, context):
+        return [gazebo_gui] if event.returncode == 0 else []
+
+    gui_after_spawn = RegisterEventHandler(
+        OnProcessExit(target_action=gz_spawn_entity, on_exit=start_gui_after_robot_spawn)
     )
 
     robot_description_content = Command(
@@ -560,6 +577,7 @@ def generate_launch_description():
         set_gz_sim_resource_path,
         set_ign_gazebo_resource_path,
         set_gz_resource_path,
+        gui_after_spawn,
         gazebo,
         delayed_robot_publishers,
         remove_dataset_object_pipeline,
