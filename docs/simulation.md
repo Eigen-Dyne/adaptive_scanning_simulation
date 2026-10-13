@@ -32,6 +32,77 @@ plus `sim/lib.sh` and `sim/gen_table_ply.py`. `up` runs the three stages with
 readiness gating (`/clock` presence and monotonicity, `joint_states`, camera,
 controllers → `move_group` → scan action graph).
 
+## Auto hand-eye calibration from the UI (simulation only)
+
+The Fleet Status **Hand-Eye Calibration → Calibrate** button uses the existing
+Common calibration request and `/armx/run_handeye_calibration` Robot action.
+With a simulated Robot, that action starts the headless Sentiac engine ported
+from `A0912_Unified` at `0422c419`. Hardware uses the same action boundary
+with its own real-camera auto-calibration profile; see the Robot package
+README for the physical setup.
+
+Rebuild Common, Robot and Simulation, then restart the stack in simulation:
+
+```bash
+./scripts/adaptive-scanning build --with-sim common robot simulation
+./scripts/adaptive-scanning up sim
+```
+
+For a native ROS workspace, rebuild packages up to `as_edge_common`,
+`as_edge_robot_doosan_a0912` and `as_sim`, source the new install overlay, and
+restart Gazebo and Robot/MoveIt in `mode:=gazebo` before using the UI.
+The Robot component includes the engine and pinned `industrial_calibration`,
+`boost_plugin_loader` and `ros_industrial_cmake_boilerplate` sources. No separate
+source dependency checkout is needed. The Robot Dockerfile builds them too.
+
+Calibration needs an idle simulation with the Robot action server, MoveIt,
+controllers, `/clock`, the robot's namespaced `/dsr01/joint_states`, RGB images
+and CameraInfo running.
+The Simulation package bridges Gazebo `/camera/depth/image` to ROS
+`/camera/color/image_raw` and owns the temporary ChArUco board. It removes the
+current dataset object while calibration uses the object area, then restores
+the same model and resolved pose on completion or failure.
+
+The engine uses the Robot's evaluated model and `/dsr01` MoveIt namespace
+(or the configured robot name), moves through `scanpose` and `capturepose`,
+then plans and captures additional views. The simulation profile uses
+`camera_depth_optical_frame`, a 5×7 board with `DICT_6X6_250`, 35 mm squares
+and 25 mm markers, and requires at least 15 accepted observations.
+Each run has an isolated ROS namespace and session directory. A stale completed
+session, observation-only validation, missing samples or failed fit cannot
+complete the UI request. The run has a 30-minute wall-time limit.
+
+Outputs under the shared runtime root are:
+
+- `Handeye Calibration/sentiac_sessions/<run>/session_<timestamp>/`: raw images,
+  sample poses, final solution, report and residual diagnostics.
+- `Handeye Calibration/handeye_result.yaml`: measured flange-to-`camera_link`
+  pose, converted from the optical-frame solution, with quaternion and Euler angles.
+- `Handeye Calibration/handeye_pose_samples.yaml` and `handeye_capture_status.csv`:
+  the accepted capture records consumed by the Common lifecycle.
+- `handeye_sim_<fixture>/`: simulation result archive, separate from the
+  fixture calibration files loaded for real hardware.
+- `calibration-records/handeye.json`: completed hand-eye status for the UI.
+
+Simulated hand-eye always launches the engine, including when
+`ARMX_ALLOW_SYNTHETIC_CALIBRATION=true`. Table simulation can still use its
+existing synthetic path; it no longer creates or overwrites a hand-eye pose.
+Hand-eye can finish before table calibration, but scan readiness still requires
+the table artifacts. The measured camera result is recorded without changing
+Gazebo's fixed mounting transform or applying it to a real-camera model.
+
+Verification for this port: the engine and its dependencies build; native
+solver tests, isolated ROS observation/capture-retry tests, and adapter/bridge
+tests pass. The broader runtime suite has a pre-existing real preflight test
+that omits the required validity period. A full Gazebo run from the UI still
+needs checking in the deployed stack.
+
+An isolated native Gazebo run was attempted in ROS domain 179. Gazebo crashed
+in Ogre2's EGL/Mesa renderer before camera readiness, so that run could not
+verify a completed calibration. Its diagnostic logs are in
+`/tmp/handeye-gazebo-runtime/`. The test processes were stopped. The simulation
+Robot launch now avoids resolving the unused real `dsr_controller2` package.
+
 ## Verified run
 
 ```

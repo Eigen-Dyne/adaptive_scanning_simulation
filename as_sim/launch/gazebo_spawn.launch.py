@@ -426,7 +426,7 @@ def generate_launch_description():
 
         if not obj:
             print("[WARN] No dataset object specified; skipping dataset spawn.")
-            return []
+            return [handeye_target_server()]
         if not os.path.exists(stl_path):
             raise RuntimeError(f"Dataset STL missing: {stl_path}")
         stl_uri = f"file://{stl_path}"
@@ -517,37 +517,47 @@ def generate_launch_description():
             f"pose=({obj_x},{obj_y},{spawn_z},{obj_r},{obj_p},{obj_yaw}) "
             f"scale={scale}"
         )
-        return [
-            ExecuteProcess(
-                cmd=[
-                    "ros2",
-                    "run",
-                    "ros_gz_sim",
-                    "create",
-                    "-world",
-                    "scanner_env",
-                    "-name",
-                    "dataset_object",
-                    "-allow_renaming",
-                    "true",
-                    "-file",
-                    model_sdf,
-                    "-x",
-                    obj_x,
-                    "-y",
-                    obj_y,
-                    "-z",
-                    spawn_z,
-                    "-R",
-                    obj_r,
-                    "-P",
-                    obj_p,
-                    "-Y",
-                    obj_yaw,
-                ],
-                output="screen",
-            )
-        ]
+        spawn = ExecuteProcess(
+            cmd=[
+                "ros2",
+                "run",
+                "ros_gz_sim",
+                "create",
+                "-world",
+                "scanner_env",
+                "-name",
+                "dataset_object",
+                "-allow_renaming",
+                "true",
+                "-file",
+                model_sdf,
+                "-x",
+                obj_x,
+                "-y",
+                obj_y,
+                "-z",
+                spawn_z,
+                "-R",
+                obj_r,
+                "-P",
+                obj_p,
+                "-Y",
+                obj_yaw,
+            ],
+            output="screen",
+        )
+        server = handeye_target_server(model_sdf, {
+            "x": obj_x, "y": obj_y, "z": spawn_z,
+            "R": obj_r, "P": obj_p, "Y": obj_yaw,
+        })
+
+        def object_spawned(event, _context):
+            if event.returncode != 0:
+                raise RuntimeError("Dataset spawn failed; calibration target setup is unavailable")
+            return [server]
+
+        return [RegisterEventHandler(OnProcessExit(target_action=spawn, on_exit=object_spawned)), spawn]
+
 
     spawn_dataset_object = OpaqueFunction(function=spawn_dataset_object_factory)
 
@@ -572,6 +582,15 @@ def generate_launch_description():
             TimerAction(period=1.0, actions=[gz_spawn_entity]),
         ],
     )
+
+    def handeye_target_server(model_file="", pose=None):
+        # TimerAction scopes its launch configuration changes. Capture the exact
+        # spawned model here instead of reading another timer's context later.
+        parameters = {"use_sim_time": True, "dataset_model_file": model_file}
+        if pose:
+            parameters.update({"dataset_" + axis: float(value) for axis, value in pose.items()})
+        return Node(package="as_sim", executable="handeye_target_server.py", output="screen",
+                    parameters=[parameters])
 
     nodes = [
         set_gz_sim_resource_path,

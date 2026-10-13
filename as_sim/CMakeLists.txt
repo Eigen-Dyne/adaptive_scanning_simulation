@@ -13,6 +13,8 @@ find_package(ament_cmake REQUIRED)
 
 install(PROGRAMS
   scripts/pointcloud_frame_relay.py
+  scripts/spawn_charuco.py
+  scripts/handeye_target_server.py
   DESTINATION lib/${PROJECT_NAME}
 )
 

@@ -127,11 +127,13 @@ def generate_launch_description():
         executable="parameter_bridge",
         arguments=[
             "/clock@rosgraph_msgs/msg/Clock[gz.msgs.Clock",
+            "/camera/depth/image@sensor_msgs/msg/Image[gz.msgs.Image",
             "/camera/depth/depth_image@sensor_msgs/msg/Image[gz.msgs.Image",
             "/camera/depth/camera_info@sensor_msgs/msg/CameraInfo[gz.msgs.CameraInfo",
             "/camera/depth/points@sensor_msgs/msg/PointCloud2[gz.msgs.PointCloudPacked",
         ],
         remappings=[
+            ("/camera/depth/image", "/camera/color/image_raw"),
             ("/camera/depth/depth_image", "/camera/depth/image_rect_raw"),
         ],
         parameters=[{"use_sim_time": use_sim_time}],
