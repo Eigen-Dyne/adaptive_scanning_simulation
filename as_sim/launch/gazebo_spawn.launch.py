@@ -334,9 +334,9 @@ def generate_launch_description():
         parameters=[{"use_sim_time": use_sim_time}],
     )
 
-    # Connecting a GUI while the robot is being inserted can leave its render
-    # scene missing the arm even though physics and controller topics are live.
-    # Start the server first; attach the optional viewer to the completed model.
+    # Attach the viewer after robot creation. Dataset insertion separately waits
+    # for the GUI's render camera: a successful create command alone does not
+    # prevent the GUI from missing a model during its initial scene handshake.
     gazebo_gui = ExecuteProcess(
         cmd=["gz", "sim", "-g", "-v", "1"],
         condition=IfCondition(LaunchConfiguration("gui")),
@@ -561,6 +561,24 @@ def generate_launch_description():
 
     spawn_dataset_object = OpaqueFunction(function=spawn_dataset_object_factory)
 
+    def spawn_after_gui_ready(context):
+        if not _as_bool(LaunchConfiguration("gui").perform(context)):
+            return [spawn_dataset_object]
+        # Receiving a render-camera pose confirms that the GUI has initialized
+        # its scene, unlike merely observing the GUI process or spawn requests.
+        wait_for_gui = ExecuteProcess(
+            cmd=["timeout", "45s", "gz", "topic", "-e", "-t", "/gui/camera/pose", "-n", "1"],
+            output="log",
+        )
+
+        def gui_ready(event, _context):
+            if event.returncode != 0:
+                raise RuntimeError("Gazebo GUI did not publish its camera pose within 45s; dataset not spawned")
+            return [spawn_dataset_object]
+
+        return [RegisterEventHandler(OnProcessExit(target_action=wait_for_gui, on_exit=gui_ready)),
+                wait_for_gui]
+
     remove_dataset_object_pipeline = TimerAction(
         period=5.0,
         actions=[
@@ -572,7 +590,7 @@ def generate_launch_description():
 
     spawn_dataset_object_pipeline = TimerAction(
         period=6.5,
-        actions=[spawn_dataset_object],
+        actions=[OpaqueFunction(function=spawn_after_gui_ready)],
     )
 
     delayed_robot_publishers = TimerAction(
