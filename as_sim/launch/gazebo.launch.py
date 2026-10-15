@@ -148,6 +148,7 @@ def generate_launch_description():
             {"input_topic": "/camera/depth/points"},
             {"output_topic": "/camera/depth/color/points"},
             {"target_frame_id": "camera_depth_optical_frame"},
+            {"convert_gazebo_axes": True},
             {"use_sim_time": use_sim_time},
         ],
         output="log",
