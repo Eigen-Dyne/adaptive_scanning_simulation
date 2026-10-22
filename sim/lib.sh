@@ -17,7 +17,7 @@ SIM_RUN_DIR="${SIM_RUN_DIR:-${SIM_DIR}/run}"              # pid files
 SIM_PARAMS="${SIM_PARAMS:-${SIM_RUN_DIR}/sim_scan_params.yaml}"
 SIM_DOCKER_PARAMS_HOST="${RUNTIME_ROOT}/sim/sim_scan_params.yaml"
 SIM_DOCKER_PARAMS_CONTAINER="/scan_logs/sim/sim_scan_params.yaml"
-TABLE_PLY="${RUNTIME_ROOT}/Calibration/table.ply"
+TABLE_PLY="${RUNTIME_ROOT}/sim/Calibration/table.ply"
 
 # --- tunables (override via env) --------------------------------------------
 SIM_NAME="${SIM_NAME:-dsr01}"
@@ -76,10 +76,11 @@ source_ros() {
   export ADAPTIVE_SCANNING_LOG_DIR="${RUNTIME_ROOT}"
   export RUN_LOG_DIR="${RUNTIME_ROOT}"
   export RUN_LOG_SKIP_PROMPT=1
+  export ARMX_RUNTIME_MODE=sim
   # Gazebo can find as_sim worlds/models via the package share parent (the
   # spawn launch sets GZ_SIM_RESOURCE_PATH itself, this is a belt-and-braces).
   export QT_QPA_PLATFORM="${QT_QPA_PLATFORM:-xcb}"
-  mkdir -p "${SIM_LOG_DIR}" "${SIM_RUN_DIR}" "${RUNTIME_ROOT}/Calibration"
+  mkdir -p "${SIM_LOG_DIR}" "${SIM_RUN_DIR}" "$(dirname "${TABLE_PLY}")"
 }
 
 # Generate a sim params file from the installed scan_params.yaml:
@@ -117,7 +118,9 @@ gen_params() {
   # parameters; the real stack retains its calibrated fleet home/workspace.
   # The synthetic table already spans the workspace. Scaling it by the physical
   # default of 4.0 intersects the cell walls and invalidates every start state.
-  sed -e "s|/scan_logs|${RUNTIME_ROOT}|g" \
+  sed -e "s|/scan_logs/Calibration|/scan_logs/sim/Calibration|g" \
+      -e 's|output_subdir: "Calibration"|output_subdir: "sim/Calibration"|g' \
+      -e "s|/scan_logs|${RUNTIME_ROOT}|g" \
       -e "s|use_sim_time: false|use_sim_time: true|g" \
       -e "s|max_tf_wait_sec: 1.50|max_tf_wait_sec: 0.30|g" \
       -e "s|sweep_step_m: 0.2|sweep_step_m: ${probe_step}|g" \
@@ -130,7 +133,9 @@ gen_params() {
       -e "s|boundary_min: \\[-0.30, 0.40, -0.12\\]|boundary_min: [-0.45, 0.35, -0.12]|g" \
       -e "s|boundary_max: \\[0.30, 0.75, 0.33\\]|boundary_max: [0.45, 1.00, 0.55]|g" \
       "${src}" > "${SIM_PARAMS}"
-  sed -e "s|use_sim_time: false|use_sim_time: true|g" \
+  sed -e "s|/scan_logs/Calibration|/scan_logs/sim/Calibration|g" \
+      -e 's|output_subdir: "Calibration"|output_subdir: "sim/Calibration"|g' \
+      -e "s|use_sim_time: false|use_sim_time: true|g" \
       -e "s|max_tf_wait_sec: 1.50|max_tf_wait_sec: 0.30|g" \
       -e "s|sweep_step_m: 0.2|sweep_step_m: ${probe_step}|g" \
       -e "s|post_execution_settle_s: 0.0|post_execution_settle_s: ${probe_settle}|g" \
@@ -150,6 +155,7 @@ gen_params() {
 gen_table() {
   local metadata_path
   metadata_path="$(dirname "${TABLE_PLY}")/metadata.json"
+  mkdir -p "$(dirname "${TABLE_PLY}")"
   if [ -f "${TABLE_PLY}" ] && [ -f "${metadata_path}" ] && [ "${FORCE:-0}" != "1" ]; then
     if table_calibration_matches_sim "${TABLE_PLY}" "${metadata_path}" "-0.12"; then
       log "table.ply present -> ${TABLE_PLY}"
