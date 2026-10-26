@@ -110,6 +110,7 @@ cmd_moveit() {
   fi
   local args=(
     mode:=gazebo name:="${SIM_NAME}" start_rviz:="${SIM_RVIZ:-false}"
+    fixture_type:="${ROBOT_FIXTURE:-config}"
     enable_dataset_collision:="${enable_dataset_collision}" dataset_dir:="${dataset_dir}"
     obj_x:="${SIM_OBJ_X}" obj_y:="${SIM_OBJ_Y}" obj_z:="${SIM_OBJ_Z}"
     obj_R:="${SIM_OBJ_R}" obj_P:="${SIM_OBJ_P}" obj_Y:="${SIM_OBJ_YAW}"
