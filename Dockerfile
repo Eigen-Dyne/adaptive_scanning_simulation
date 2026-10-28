@@ -9,17 +9,16 @@
 #
 #   ./scripts/adaptive-scanning build --with-sim
 #
-# Its build context is components/simulation. Bake supplies the just-built
-# Robot image as a named context, so it must not be built independently.
+# Its build context is components/simulation. Bake supplies Robot's stable
+# dependencies and current runtime as named contexts.
 #
-# Why FROM the robot image:
+# Why share Robot's dependencies and built workspace:
 #   Gazebo loads gz_ros2_control *inside its own process*, and that plugin
 #   resolves $(find as_edge_robot_doosan_a0912)/config/dsr_controller2_gz.yaml
 #   (doosan/dsr_description/xacro/macro.gazebo.scanner.xacro). It also needs the
 #   robot meshes and runs as_edge_robot_doosan_a0912/ensure_controllers.py.
-#   Whichever container runs Gazebo must carry the robot package; inheriting it
-#   is the only option that does not duplicate ~90 MB of Doosan assets and let
-#   them drift out of sync.
+#   Whichever container runs Gazebo must carry the current robot package.
+#   Copy the whole workspace to preserve colcon's source/install symlinks.
 #
 # This container owns ONLY the `gazebo` stage of sim.sh:
 #   simulation -> Gazebo, world+robot spawn, robot_state_publisher,
@@ -31,35 +30,51 @@
 #    /dsr01/controller_manager"
 
 ARG ROBOT_IMAGE=dyne-vision-robot:local
-FROM ${ROBOT_IMAGE} AS runtime
+FROM ${ROBOT_IMAGE} AS robot-runtime
+FROM robot-deps AS simulation-deps
 
 ENV DEBIAN_FRONTEND=noninteractive
 SHELL ["/bin/bash", "-c"]
 
-# ros_gz / gz_ros2_control are deliberately skip-keyed in the robot image's
-# rosdep invocation; simulation adds them on top. The robot package is not
-# rebuilt.
-RUN apt-get update && apt-get install -y --no-install-recommends \
+# Keep downloads independent of robot code, meshes and build timestamps.
+# Cache archives as well as indexes for interrupted or dependency-change builds.
+ARG TARGETARCH
+RUN --mount=type=cache,id=armx-sim-apt-${TARGETARCH},target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,id=armx-sim-apt-lists-${TARGETARCH},target=/var/lib/apt/lists,sharing=locked \
+    rm -f /etc/apt/apt.conf.d/docker-clean && \
+    apt-get -o Acquire::Retries=3 update && \
+    apt-get -o Acquire::Retries=3 install -y --no-install-recommends \
       ros-jazzy-ros-gz-sim \
       ros-jazzy-ros-gz-bridge \
       ros-jazzy-ros-gz-interfaces \
       ros-jazzy-gz-ros2-control \
       ros-jazzy-ros2controlcli \
       libegl1 libgl1 libglx-mesa0 libgles2 libgl1-mesa-dri \
-      procps psmisc \
-    && rm -rf /var/lib/apt/lists/*
+      procps psmisc
 
-COPY as_sim /edge_ws/src/as_sim
+FROM simulation-deps AS runtime
+
+# Application updates invalidate these copies, never the dependency install.
+COPY --from=robot-runtime /edge_ws /edge_ws
+
+COPY as_sim/package.xml as_sim/CMakeLists.txt /edge_ws/src/as_sim/
 
 WORKDIR /edge_ws
 RUN source /opt/ros/jazzy/setup.bash && \
     source /edge_ws/doosan_ws/install/setup.bash && \
     source /edge_ws/install/setup.bash && \
-    colcon build --symlink-install --packages-select as_sim
+    colcon build --symlink-install --packages-select as_sim --cmake-target all
+
+# Keep the large dataset/model layer ahead of frequently edited launch/scripts.
+COPY as_sim/worlds /edge_ws/src/as_sim/worlds
+COPY as_sim/launch /edge_ws/src/as_sim/launch
+COPY as_sim/scripts /edge_ws/src/as_sim/scripts
+RUN cmake --install /edge_ws/build/as_sim
 
 COPY sim /opt/adaptive_scanning/sim
-COPY docker/entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
+COPY --chmod=755 docker/entrypoint.sh /entrypoint.sh
+# A new build timestamp must not rerun even the small as_sim configure/install.
+COPY --from=robot-runtime /opt/armx /opt/armx
 
 # ADAPTIVE_SCANNING_WS_ROOT defuses sim/lib.sh's "${SIM_REPO_ROOT}/../.."
 # workspace heuristic, which is wrong inside the image.
@@ -67,7 +82,8 @@ ENV ADAPTIVE_SCANNING_WS_ROOT=/edge_ws \
     ADAPTIVE_SCANNING_SIM_LOG_DIR=/runtime \
     SIM_SKIP_BUILD=1 \
     SIM_SKIP_PREPARE=1 \
-    QT_QPA_PLATFORM=xcb
+    QT_QPA_PLATFORM=xcb \
+    ROBOT_FIXTURE=zeiss
 
 ENTRYPOINT ["/entrypoint.sh"]
 CMD ["gazebo"]

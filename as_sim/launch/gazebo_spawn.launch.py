@@ -29,6 +29,7 @@ from launch.event_handlers import OnProcessExit
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import (
     Command,
+    EnvironmentVariable,
     FindExecutable,
     LaunchConfiguration,
     PathJoinSubstitution,
@@ -42,6 +43,11 @@ arguments = [
     DeclareLaunchArgument("name", default_value="dsr01", description="NAME_SPACE"),
     DeclareLaunchArgument(
         "model", default_value="a0912_scanner", description="ROBOT_MODEL"
+    ),
+    DeclareLaunchArgument(
+        "fixture_type",
+        default_value=EnvironmentVariable("ROBOT_FIXTURE", default_value="config"),
+        choices=["config", "zeiss", "creaform_black", "creaform_700", "universal"],
     ),
     DeclareLaunchArgument("color", default_value="blue", description="ROBOT_COLOR"),
     DeclareLaunchArgument("gui", default_value="false", description="Start Gazebo GUI"),
@@ -99,6 +105,7 @@ arguments = [
     ),
     DeclareLaunchArgument("floor_z", default_value="0.0", description="Gazebo floor Z"),
 ]
+
 
 
 OBJECT_POSE_OVERRIDES = {
@@ -373,8 +380,9 @@ def generate_launch_description():
             " ",
             "namespace:=",
             LaunchConfiguration("name"),
-            # a0912_scanner.urdf.xacro declares this argument and maps it to
-            # the vendor Gazebo macro's `rate` parameter.
+            " fixture_type:=",
+            LaunchConfiguration("fixture_type"),
+            # a0912_scanner.urdf.xacro maps this to the vendor `rate` parameter.
             " update_rate:=30",
         ]
     )

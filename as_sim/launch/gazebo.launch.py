@@ -16,7 +16,9 @@ from launch.actions import (
     TimerAction,
 )
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.substitutions import Command, FindExecutable, LaunchConfiguration, PathJoinSubstitution
+from launch.substitutions import (
+    Command, EnvironmentVariable, FindExecutable, LaunchConfiguration, PathJoinSubstitution,
+)
 from launch_ros.actions import Node
 from launch_ros.parameter_descriptions import ParameterValue
 from launch_ros.substitutions import FindPackageShare
@@ -29,6 +31,13 @@ def generate_launch_description():
         DeclareLaunchArgument("port", default_value="12345", description="ROBOT_PORT"),
         DeclareLaunchArgument("mode", default_value="gazebo", description="OPERATION MODE"),
         DeclareLaunchArgument("model", default_value="a0912_scanner", description="ROBOT_MODEL"),
+        # Match robot.launch.py's ROBOT_FIXTURE selection in Docker while
+        # preserving fixture_config.yaml as the standalone launch fallback.
+        DeclareLaunchArgument(
+            "fixture_type",
+            default_value=EnvironmentVariable("ROBOT_FIXTURE", default_value="config"),
+            choices=["config", "zeiss", "creaform_black", "creaform_700", "universal"],
+        ),
         DeclareLaunchArgument("color", default_value="blue", description="ROBOT_COLOR"),
         DeclareLaunchArgument("gui", default_value="false", description="Start Gazebo GUI"),
         DeclareLaunchArgument("gz", default_value="true", description="USE GAZEBO SIM"),
@@ -111,6 +120,8 @@ def generate_launch_description():
             LaunchConfiguration("mode"),
             " model:=",
             LaunchConfiguration("model"),
+            " fixture_type:=",
+            LaunchConfiguration("fixture_type"),
             " update_rate:=",
             update_rate,
         ]
@@ -121,6 +132,7 @@ def generate_launch_description():
             value_type=str,
         )
     }
+
 
     gz_sim_bridge = Node(
         package="ros_gz_bridge",
@@ -179,6 +191,7 @@ def generate_launch_description():
             "gui": LaunchConfiguration("gui"),
             "name": LaunchConfiguration("name"),
             "color": LaunchConfiguration("color"),
+            "fixture_type": LaunchConfiguration("fixture_type"),
             "x": LaunchConfiguration("x"),
             "y": LaunchConfiguration("y"),
             "z": LaunchConfiguration("z"),
