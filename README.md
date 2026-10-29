@@ -183,3 +183,43 @@ does not start Docker services or the Common application container.
    job and receive its status.
 
 Detailed runner options are documented in [sim/README.md](sim/README.md).
+
+### Fixture collision geometry
+
+Gazebo reads `ROBOT_FIXTURE` (the same setting used by the Robot container),
+or accepts a `fixture_type:=...` launch override. Without either, it uses
+`config/fixture_config.yaml` from the robot package. Both the spawned Gazebo
+model and its robot description receive the selected fixture. The standalone
+`sim.sh moveit` stage also forwards `ROBOT_FIXTURE`.
+
+For `ROBOT_FIXTURE=creaform_700`, the shared robot Xacro uses
+`creaform_700_collision.stl` at its default zero padding, matching MoveIt.
+It preserves the scanner's irregular surface rather than filling its bounds
+with a box. Other fixtures keep their configured collision geometry; explicitly
+padded robot Xacro models retain the conservative box behavior.
+
+After changing fixture geometry, rebuild the simulation image and recreate
+both Robot and Simulation containers so their descriptions stay consistent:
+
+```bash
+./scripts/adaptive-scanning build --with-sim simulation
+./scripts/adaptive-scanning up sim
+```
+
+### Occupancy cubes in simulation
+
+Simulation uses the shared Common reconstruction pipeline, including the
+real-robot column fill. Each observed XY column is filled down to the grid
+origin; additional padded collision boxes bridge any remaining gap to the
+calibrated table. Those extra boxes do not become observations or targets.
+The normal 0.05 m grid and 0.02 m collision padding produce 0.07 m boxes.
+Simulation keeps its generated workspace/table configuration and simulated clock.
+
+In RViz, use the **Workspace** MarkerArray display on
+`/initial_reconstruction/workspace_markers` with reliable, transient-local QoS
+for the actual padded and table-gap boxes. The occupied PointCloud2 display
+shows only small voxel-center squares. Waypoint label updates use the separate
+`/initial_reconstruction/workspace_waypoint_markers` topic so their clear
+messages cannot erase the filled boxes or replace the retained occupancy
+snapshot. Explicit workspace collision cleanup still removes the cube markers.
+Re-run probing after an update to generate a fresh occupancy scene.
