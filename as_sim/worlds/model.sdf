@@ -1,0 +1,40 @@
+<?xml version="1.0" ?>
+<sdf version="1.7">
+  <model name="dataset_object">
+    <static>true</static>
+
+    <!--
+      Manual/example dataset object model.
+      Normal simulation launches dynamically generate the object SDF from
+      SIM_PART/SIM_OBJECT in gazebo_spawn.launch.py.
+    -->
+
+    <link name="link">
+      <visual name="visual">
+        <geometry>
+          <mesh>
+            <uri>package://as_sim/worlds/Dataset/1.stl</uri>
+
+            <scale>0.001 0.001 0.001</scale>
+          </mesh>
+        </geometry>
+         <material>
+            <ambient>0.4 0.4 0.4 1</ambient>
+            <diffuse>0.7 0.7 0.7 1</diffuse>
+            <specular>0.2 0.2 0.2 1</specular>
+            <emissive>0 0 0 1</emissive>
+        </material>
+      </visual>
+
+      <collision name="collision">
+        <geometry>
+          <mesh>
+            <uri>package://as_sim/worlds/Dataset/1.stl</uri>
+
+            <scale>0.001 0.001 0.001</scale>
+          </mesh>
+        </geometry>
+      </collision>
+    </link>
+  </model>
+</sdf>

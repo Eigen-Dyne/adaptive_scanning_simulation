@@ -1,2 +1,225 @@
-# adaptive_scanning_simulation
-Simulation codebase for Adaptive Scanning
+# Adaptive Scanning Simulation
+
+This repository owns the Gazebo simulation package and test runner for the
+Adaptive Scanning stack. It is development/test tooling and is not included in
+the production Common, Robot, or Sensor containers.
+
+The simulation preserves the production ROS 2 contracts:
+
+- Gazebo replaces the physical robot and depth camera.
+- the Robot package runs MoveIt and the motion action servers in `gazebo` mode;
+- the Common package runs the same scan orchestration used with real hardware;
+- ArmX-E can run against the simulated ROS graph for end-to-end UI testing.
+
+## Workspace setup
+
+Use a clean ROS 2 Jazzy workspace. Clone the Doosan ROS 2 vendor stack and all
+five Adaptive Scanning repositories into the same `src/` directory:
+
+```bash
+mkdir -p ~/adaptive_scanning_ws/src
+cd ~/adaptive_scanning_ws/src
+
+# Vendor robot dependency. The simulation was validated on the Jazzy branch at
+# b43d07103d92e7d90014b83ddf42506779bafdcc.
+git clone --branch jazzy \
+  https://github.com/DoosanRobotics/doosan-robot2.git
+
+git clone --branch dependency_fix \
+  https://github.com/Eigen-Dyne/adaptive_scanning_simulation.git
+git clone --branch dependency_fix \
+  https://github.com/Robolab-Development/Dyne-vision-common.git
+git clone --branch dependency_fix \
+  https://github.com/Robolab-Development/Dyne-vision-robot.git
+git clone --branch dependency_fix \
+  https://github.com/Robolab-Development/Dyne-vision-sensor.git
+git clone --branch dependency_fix \
+  https://github.com/Eigen-Dyne/adaptive_scanning_interfaces.git
+```
+
+The interface repository is listed separately because it is the public ROS
+message/action contract shared by Common and Robot. `doosan-robot2` is an
+external vendor dependency and is not one of the five project repositories.
+
+For a reproducible checkout matching the validated environment, pin the vendor
+repository after cloning it:
+
+```bash
+git -C ~/adaptive_scanning_ws/src/doosan-robot2 checkout \
+  b43d07103d92e7d90014b83ddf42506779bafdcc
+```
+
+Install the ROS dependencies from the workspace root. This resolves the
+dependencies of both the five project repositories and the Doosan vendor
+packages. ROS 2 Jazzy, Gazebo Sim 8, `ros_gz`, and `gz_ros2_control` must be
+available on the host.
+
+```bash
+cd ~/adaptive_scanning_ws
+source /opt/ros/jazzy/setup.bash
+rosdep update
+rosdep install --from-paths src --ignore-src -r -y --rosdistro jazzy
+```
+
+The Doosan controller emulator installation script is not required for this
+Gazebo-only path: Gazebo and `gz_ros2_control` provide the simulated robot
+hardware. It is required only when separately testing the Doosan virtual
+controller workflow documented by the vendor.
+
+Build the simulation stack and verify that the required vendor description is
+available in the resulting overlay:
+
+```bash
+cd ~/adaptive_scanning_ws/src/adaptive_scanning_simulation
+./sim/sim.sh build
+
+cd ~/adaptive_scanning_ws
+source install/setup.bash
+ros2 pkg prefix dsr_description2
+```
+
+The final command should print a path under
+`~/adaptive_scanning_ws/install/dsr_description2`.
+
+## Self-contained ROS simulation
+
+This path runs Gazebo, Robot, Common, and the scan pipeline directly in the host
+ROS workspace. It does not start the ArmX-E application.
+
+```bash
+cd ~/adaptive_scanning_ws/src/adaptive_scanning_simulation
+
+SIM_PART=10 SIM_GZ_GUI=true ./sim/sim.sh up
+```
+
+Useful commands:
+
+```bash
+./sim/sim.sh status
+./sim/sim.sh logs gazebo
+./sim/sim.sh logs moveit
+./sim/sim.sh logs scan
+./sim/sim.sh down
+```
+
+The stable automated path is headless. Set `SIM_GZ_GUI=true` only when a Gazebo
+window is required.
+
+## ArmX-E application test with simulated hardware
+
+This path starts simulated hardware from this repository and the ArmX-E
+application services from the Common repository. The Common scan can run on the
+host or in its production-like container while communicating with the same ROS
+graph.
+
+```bash
+cd ~/adaptive_scanning_ws/src/Dyne-vision-common
+
+ARMX_SIM_OBJECT=10.stl \
+ARMX_SIM_GZ_GUI=true \
+ARMX_SIM_USE_MOCK_AI=false \
+ARMX_AI_UPLOAD_FALLBACK_ENABLED=true \
+ARMX_SIM_START_RVIZ=true \
+ARMX_BRIDGE_START_TIMEOUT_S=120 \
+./armx-e/scripts/armx-e_sim.sh start
+```
+
+The launcher automatically finds `../adaptive_scanning_simulation`. For a
+different checkout layout, set:
+
+```bash
+export ADAPTIVE_SCANNING_SIM_ROOT=/absolute/path/to/adaptive_scanning_simulation
+```
+
+To run the Common scan in its container instead of as a host ROS process:
+
+```bash
+export ARMX_SIM_EDGE_SCAN_BACKEND=docker_common
+export ADAPTIVE_SCANNING_INTERFACES_REF=dependency_fix
+```
+
+The Robot and Gazebo processes remain host-side in this test path. The Robot
+production container is intended for physical hardware; Gazebo supplies its
+replacement hardware interfaces during simulation.
+
+## Containerized ARMx-E simulation test
+
+For the supported Docker deployment, run the simulation from the
+AdaptiveScanning superproject, not the legacy Common compose wrapper. This
+starts one persistent `common` container for ARMx-E and as_edge_common, plus
+PostgreSQL, the Robot container, and this simulation container for Gazebo.
+
+```bash
+cd ~/ros2_ws/src/AdaptiveScanning
+cp .env.example .env                         # first run only
+# Set POSTGRES_PASSWORD, ROS_DOMAIN_ID, and RENDER_GID; create matching secret.
+./scripts/adaptive-scanning bootstrap --with-sim
+./scripts/adaptive-scanning build --with-sim
+./scripts/adaptive-scanning up sim
+./scripts/adaptive-scanning status sim
+./scripts/adaptive-scanning logs sim --follow common
+```
+
+The Common startup process generates simulation parameters and table
+calibration in the shared runtime directory before this Gazebo container starts.
+Stop the full profile with:
+
+```bash
+./scripts/adaptive-scanning down sim
+```
+
+For direct host-only simulation development, continue to use `sim/sim.sh`; it
+does not start Docker services or the Common application container.
+
+## Runtime stages
+
+1. `as_sim/gazebo.launch.py` loads the world, Robot xacro, controllers, camera,
+   and selected STL object.
+2. `as_edge_robot_doosan_a0912/robot.launch.py mode:=gazebo` starts one MoveIt
+   instance and the Robot-owned motion/calibration/telemetry interfaces.
+3. Common starts the scan orchestration and consumes the same Robot actions and
+   camera topics used in production.
+4. With the ArmX-E launcher, the UI and application services control the scan
+   job and receive its status.
+
+Detailed runner options are documented in [sim/README.md](sim/README.md).
+
+### Fixture collision geometry
+
+Gazebo reads `ROBOT_FIXTURE` (the same setting used by the Robot container),
+or accepts a `fixture_type:=...` launch override. Without either, it uses
+`config/fixture_config.yaml` from the robot package. Both the spawned Gazebo
+model and its robot description receive the selected fixture. The standalone
+`sim.sh moveit` stage also forwards `ROBOT_FIXTURE`.
+
+For `ROBOT_FIXTURE=creaform_700`, the shared robot Xacro uses
+`creaform_700_collision.stl` at its default zero padding, matching MoveIt.
+It preserves the scanner's irregular surface rather than filling its bounds
+with a box. Other fixtures keep their configured collision geometry; explicitly
+padded robot Xacro models retain the conservative box behavior.
+
+After changing fixture geometry, rebuild the simulation image and recreate
+both Robot and Simulation containers so their descriptions stay consistent:
+
+```bash
+./scripts/adaptive-scanning build --with-sim simulation
+./scripts/adaptive-scanning up sim
+```
+
+### Occupancy cubes in simulation
+
+Simulation uses the shared Common reconstruction pipeline, including the
+real-robot column fill. Each observed XY column is filled down to the grid
+origin; additional padded collision boxes bridge any remaining gap to the
+calibrated table. Those extra boxes do not become observations or targets.
+The normal 0.05 m grid and 0.02 m collision padding produce 0.07 m boxes.
+Simulation keeps its generated workspace/table configuration and simulated clock.
+
+In RViz, use the **Workspace** MarkerArray display on
+`/initial_reconstruction/workspace_markers` with reliable, transient-local QoS
+for the actual padded and table-gap boxes. The occupied PointCloud2 display
+shows only small voxel-center squares. Waypoint label updates use the separate
+`/initial_reconstruction/workspace_waypoint_markers` topic so their clear
+messages cannot erase the filled boxes or replace the retained occupancy
+snapshot. Explicit workspace collision cleanup still removes the cube markers.
+Re-run probing after an update to generate a fresh occupancy scene.

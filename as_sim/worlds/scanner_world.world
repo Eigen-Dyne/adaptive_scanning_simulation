@@ -1,0 +1,115 @@
+<?xml version="1.0" ?>
+<!--
+  Gazebo (gz-sim 8 / Harmonic-era) world for AdaptiveScanning simulation.
+
+  The previous version of this file declared only an empty <world> element. With
+  no system plugins gz-sim does not run physics, cannot answer the /world/.../create
+  service used to spawn the robot and dataset object, and never renders the
+  on-robot RGBD camera. This populated world fixes all three:
+
+    * Physics            -> joints move, gz_ros2_control can command the arm.
+    * SceneBroadcaster   -> GUI / state introspection and TF of world entities.
+    * UserCommands       -> enables the spawn/remove services used by as_sim.
+    * Sensors            -> renders the robot's rgbd_camera so /camera/depth/*
+                            topics actually publish. Declared here (world load
+                            time) rather than in the spawned robot model so the
+                            render system is up before the sensor appears.
+
+  A sun light and a ground plane are added. The ground plane sits at gz z=0,
+  which is the scan-cell table top: the robot base is welded to the world with a
+  -90 deg yaw (see a0912_scanner.urdf.xacro) and the dataset object is floor-
+  placed, matching scan_params table_plane_z_m = -0.12 in the base frame.
+-->
+<sdf version="1.9">
+  <world name="scanner_env">
+
+    <!--
+      Timing tuned for a headless host (GUI + RViz off). A 2 ms step at RTF 1.0
+      could not be sustained under the old GUI load, so gz-sim republished /clock
+      in catch-up bursts (non-monotonic) and MoveIt saw "jump back in time" ->
+      TF buffer clears -> "start point deviates from current robot state" aborts
+      and execution timeouts.
+        * max_step_size 0.004 (250 Hz) halves physics cost; fine for a scanning
+          arm with no hard contacts.
+        * real_time_factor 0.5 favors slower-but-steady sim time over real-time
+          speed. MoveIt timeouts run on sim time, so stability is more important
+          than wall-clock throughput for validation.
+    -->
+    <physics name="4ms" type="ignored">
+      <max_step_size>0.004</max_step_size>
+      <real_time_factor>0.5</real_time_factor>
+    </physics>
+
+    <plugin filename="gz-sim-physics-system"
+            name="gz::sim::systems::Physics"/>
+    <plugin filename="gz-sim-scene-broadcaster-system"
+            name="gz::sim::systems::SceneBroadcaster"/>
+    <plugin filename="gz-sim-user-commands-system"
+            name="gz::sim::systems::UserCommands"/>
+    <plugin filename="gz-sim-sensors-system"
+            name="gz::sim::systems::Sensors">
+      <render_engine>ogre2</render_engine>
+    </plugin>
+
+    <gravity>0 0 -9.8</gravity>
+    <magnetic_field>6e-06 2.3e-05 -4.2e-05</magnetic_field>
+    <atmosphere type="adiabatic"/>
+
+    <scene>
+      <ambient>0.6 0.6 0.6 1</ambient>
+      <background>0.8 0.85 0.9 1</background>
+      <shadows>false</shadows>
+    </scene>
+
+    <light type="directional" name="sun">
+      <cast_shadows>false</cast_shadows>
+      <pose>0 0 10 0 0 0</pose>
+      <diffuse>1 1 1 1</diffuse>
+      <specular>0.3 0.3 0.3 1</specular>
+      <attenuation>
+        <range>1000</range>
+        <constant>0.9</constant>
+        <linear>0.01</linear>
+        <quadratic>0.001</quadratic>
+      </attenuation>
+      <direction>-0.3 0.2 -1.0</direction>
+    </light>
+
+    <!-- Table top / floor at gz z=0 (= base-frame z=-0.12). -->
+    <model name="ground_plane">
+      <static>true</static>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>10 10</size>
+            </plane>
+          </geometry>
+          <surface>
+            <friction>
+              <ode>
+                <mu>1.0</mu>
+                <mu2>1.0</mu2>
+              </ode>
+            </friction>
+          </surface>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>10 10</size>
+            </plane>
+          </geometry>
+          <material>
+            <ambient>0.75 0.75 0.78 1</ambient>
+            <diffuse>0.75 0.75 0.78 1</diffuse>
+            <specular>0.1 0.1 0.1 1</specular>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+  </world>
+</sdf>
