@@ -13,11 +13,11 @@ fixed to make it work. For day-to-day usage see [`../sim/README.md`](../sim/READ
 | Scan | `as_edge_common/launch/scan_and_perceive.launch.py` | scan action servers + `edge_orchestrator` |
 
 The robot base is welded to the world with a −90° yaw
-([`a0912_scanner.urdf.xacro`](../as_edge_robot_doosan_a0912/doosan/dsr_description/xacro/a0912_scanner.urdf.xacro)),
+(`a0912_scanner.urdf.xacro`, in `Dyne-vision-robot/as_edge_robot_doosan_a0912/doosan/dsr_description/xacro/`),
 so a Gazebo-frame object at `(0.65, 0)` maps to base-frame `(0, 0.65)` — inside the
 simulation workspace `y∈[0.35,1.00]` and under the A0912 scan pose. The on-arm D405 is an
 `rgbd_camera` sensor in
-[`a0912_end_effector.xacro`](../as_edge_robot_doosan_a0912/doosan/dsr_description/xacro/a0912_end_effector.xacro).
+`a0912_end_effector.xacro` (in the same folder).
 
 Gazebo owns the visual/physical `dataset_object`. MoveIt receives a matching
 collision mesh from `dataset_collision_scene.py`; in simulation the object pose

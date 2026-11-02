@@ -4,8 +4,8 @@
   <name>as_sim</name>
   <version>0.0.0</version>
   <description>Optional Gazebo simulation package for AdaptiveScanning deployment testing.</description>
-  <maintainer email="harieprashanth@gmail.com">hariChozhan</maintainer>
-  <license>TODO: License declaration</license>
+  <maintainer email="vishwasn@eigen-dyne.com">Vishwas NS</maintainer>
+  <license>Proprietary</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
   <exec_depend>as_edge_robot_doosan_a0912</exec_depend>
