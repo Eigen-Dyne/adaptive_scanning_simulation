@@ -21,7 +21,7 @@ mkdir -p ~/adaptive_scanning_ws/src
 cd ~/adaptive_scanning_ws/src
 
 # Vendor robot dependency. The simulation was validated on the Jazzy branch at
-# b43d07103d92e7d90014b83ddf42506779bafdcc.
+# 816ecb5d1c2599303eaf9540216afa03552f80ad, with the DRFL SDK libraries from 8e033f0e2284be0a25b655266e02878ebc915c50.
 git clone --branch jazzy \
   https://github.com/DoosanRobotics/doosan-robot2.git
 
@@ -46,7 +46,11 @@ repository after cloning it:
 
 ```bash
 git -C ~/adaptive_scanning_ws/src/doosan-robot2 checkout \
-  b43d07103d92e7d90014b83ddf42506779bafdcc
+  816ecb5d1c2599303eaf9540216afa03552f80ad
+# The prebuilt DRFL SDK libraries (DRFL 1.33.4) come from a second commit, exactly as
+# in the robot Dockerfile (DOOSAN_SDK_COMMIT).
+git -C ~/adaptive_scanning_ws/src/doosan-robot2 fetch --depth 1 origin 8e033f0e2284be0a25b655266e02878ebc915c50
+git -C ~/adaptive_scanning_ws/src/doosan-robot2 checkout 8e033f0e2284be0a25b655266e02878ebc915c50 -- dsr_common2/lib/jazzy
 ```
 
 Install the ROS dependencies from the workspace root. This resolves the
