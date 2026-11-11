@@ -88,7 +88,10 @@ source_ros() {
 #   * force use_sim_time true on the global wildcard
 gen_params() {
   local src
-  src="$(ros2 pkg prefix as_edge_common 2>/dev/null)/share/as_edge_common/config/scan_params.yaml"
+  src="${ARMX_BASE_SCAN_PARAMS_PATH:-}"
+  if [[ -z "$src" ]]; then
+    src="$(ros2 pkg prefix as_edge_common 2>/dev/null)/share/as_edge_common/config/scan_params.yaml"
+  fi
   if [ ! -f "${src}" ]; then
     err "installed scan_params.yaml not found at ${src}"
     return 1
